@@ -1,6 +1,6 @@
 # Zephyr Tools
 
-This directory contains tools for debugging tasks I've needed to perform on Zephyr projects.
+This repository contains tools for debugging tasks I've needed to perform on Zephyr projects.
 
 ## Table of Contents
 - [License](#license)
