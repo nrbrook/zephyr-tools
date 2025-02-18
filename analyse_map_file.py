@@ -159,7 +159,7 @@ Examples:
         
         if args.html:
             try:
-                from html_report import generate_html_report
+                from analyse_map_file_report import generate_html_report
             except ImportError as e:
                 print(f"Error: {e}")
                 print("To use HTML output, install required packages:")

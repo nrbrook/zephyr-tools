@@ -2,6 +2,44 @@
 
 This directory contains tools for debugging tasks I've needed to perform on Zephyr projects.
 
+## Table of Contents
+- [License](#license)
+- [Tips for Memory Analysis](#tips-for-memory-analysis)
+- [Tools](#tools)
+  - [analyse_map_file.py](#analyse_map_filepy)
+    - [Purpose](#purpose)
+    - [Usage](#usage)
+    - [Options](#options)
+    - [HTML Report Features](#html-report-features)
+    - [Requirements for HTML Reports](#requirements-for-html-reports)
+    - [Example HTML Report Usage](#example-html-report-usage)
+    - [Output Example](#output-example)
+  - [compare_size_trees.py](#compare_size_treespy)
+    - [Purpose](#purpose-1)
+    - [Usage](#usage-1)
+    - [Options](#options-1)
+    - [Output Example](#output-example-1)
+  - [compare_map_files.py](#compare_map_filespy)
+    - [Purpose](#purpose-2)
+    - [Usage](#usage-2)
+    - [Options](#options-2)
+    - [HTML Report Features](#html-report-features-1)
+    - [Example HTML Report Usage](#example-html-report-usage-1)
+    - [Output Example](#output-example-2)
+    - [Section Types](#section-types)
+  - [bus_fault_debug.sh](#bus_fault_debugsh)
+    - [Purpose](#purpose-3)
+    - [Usage](#usage-3)
+    - [ELF File Locations](#elf-file-locations)
+    - [Example](#example)
+    - [Requirements](#requirements)
+    - [Tips for Bus Fault Debugging](#tips-for-bus-fault-debugging)
+- [Shared Modules](#shared-modules)
+  - [map_file_utils.py](#map_file_utilspy)
+    - [Features](#features)
+    - [Usage](#usage-4)
+    - [Section Types](#section-types-1)
+
 ## License
 
 These tools are released under the MIT License. See the [LICENSE](LICENSE) file for details.
@@ -192,13 +230,53 @@ A tool for analyzing memory usage differences between two builds by comparing th
 
 ### Usage
 ```bash
-python3 compare_map_files.py old_map.map new_map.map [--mode rom|ram] [--show-unchanged]
+python3 compare_map_files.py old_map.map new_map.map [--mode rom|ram] [--show-unchanged] [--html FILE]
 ```
 
 ### Options
-- `--mode rom`: Show only ROM-related sections (.text, .rodata)
-- `--mode ram`: Show only RAM-related sections (.data, .bss, .noinit)
+- `--mode rom|ram`: Show only ROM-related sections (.text, .rodata) or RAM-related sections (.data, .bss, .noinit)
 - `--show-unchanged`: Include symbols that haven't changed in size
+- `--html FILE`: Generate an interactive HTML report with visualizations
+
+### HTML Report Features
+The HTML report (`--html` option) provides an interactive visualization of memory usage differences:
+
+![Memory Compare HTML Report Example](docs/images/memory_comparison_example.png)
+
+1. **Summary**
+   - Total size changes with percentages
+   - Section-by-section comparison
+
+2. **Section Changes**
+   - Table view showing old and new sizes
+   - Size differences with color coding
+   - Positive changes in green
+   - Negative changes in red
+
+3. **Detailed Changes**
+   - Collapsible tree view of all changes
+   - Organized by:
+     - Directory
+     - Object file
+     - Section
+     - Symbol
+   - Color-coded changes:
+     - Added symbols (green)
+     - Removed symbols (red)
+     - Changed symbols (blue)
+   - Shows size differences at every level
+
+### Example HTML Report Usage
+```bash
+# Basic HTML report
+python3 compare_map_files.py old.map new.map --html report.html
+
+# ROM-only HTML report
+python3 compare_map_files.py old.map new.map --mode rom --html rom_changes.html
+
+# RAM analysis with unchanged symbols
+python3 compare_map_files.py old.map new.map --mode ram --show-unchanged --html ram_full.html
+```
 
 ### Output Example
 ```

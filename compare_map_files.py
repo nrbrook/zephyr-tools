@@ -9,6 +9,8 @@ import re
 import argparse
 from collections import defaultdict
 import os
+from map_file_utils import parse_map_file, group_by_directory
+from compare_map_report import generate_html_report
 
 # ANSI escape codes for colors
 RED = "\033[91m"
@@ -98,7 +100,27 @@ def parse_map_file(filename):
     
     return objects
 
-def filter_sections(differences, section_totals, mode):
+def filter_sections_by_mode(objects, mode):
+    """
+    Filter objects to only include relevant sections for ROM or RAM analysis.
+    """
+    if mode is None:
+        return objects
+        
+    relevant_sections = ROM_SECTIONS if mode == 'rom' else RAM_SECTIONS
+    
+    filtered_objects = {}
+    for obj_path, sections in objects.items():
+        filtered_sections = {
+            section: symbols for section, symbols in sections.items()
+            if any(s in section for s in relevant_sections)
+        }
+        if filtered_sections:
+            filtered_objects[obj_path] = filtered_sections
+            
+    return filtered_objects
+
+def filter_differences(differences, section_totals, mode):
     """
     Filter differences and totals to only include relevant sections for ROM or RAM analysis.
     """
@@ -162,7 +184,7 @@ def print_tree(differences, section_totals, show_unchanged=False, mode=None):
     Print the differences in a tree structure, similar to the ROM tree output.
     """
     # Filter sections based on mode
-    differences, section_totals = filter_sections(differences, section_totals, mode)
+    differences, section_totals = filter_differences(differences, section_totals, mode)
     
     # First print section totals
     print("\nSection Totals:")
@@ -321,33 +343,138 @@ def compare_objects(old_objects, new_objects):
     return differences, section_totals
 
 def main():
-    parser = argparse.ArgumentParser(description='Compare symbol sizes between two map files.')
+    parser = argparse.ArgumentParser(description='Compare memory usage between two map files')
     parser.add_argument('old_map', help='Path to the old map file')
     parser.add_argument('new_map', help='Path to the new map file')
-    parser.add_argument('--show-unchanged', action='store_true',
-                      help='Show unchanged symbols in the output')
-    parser.add_argument('--mode', choices=['rom', 'ram'],
-                      help='Analysis mode: rom shows flash usage (.text, .rodata), '
-                           'ram shows RAM usage (.data, .bss, .noinit)')
+    parser.add_argument('--mode', choices=['rom', 'ram'], help='Show only ROM or RAM sections')
+    parser.add_argument('--show-unchanged', action='store_true', help='Show symbols that have not changed')
+    parser.add_argument('--html', metavar='FILE', help='Generate HTML report')
     args = parser.parse_args()
 
-    try:
-        old_objects = parse_map_file(args.old_map)
-        new_objects = parse_map_file(args.new_map)
-        
-        differences, section_totals = compare_objects(old_objects, new_objects)
-        
-        if not differences:
-            print("No differences found.")
-        else:
-            print_tree(differences, section_totals, args.show_unchanged, args.mode)
-            
-    except FileNotFoundError as e:
-        print(f"Error: Could not find file {e.filename}")
-        sys.exit(1)
-    except Exception as e:
-        print(f"Error: {str(e)}")
-        sys.exit(1)
+    # Parse map files
+    old_objects = parse_map_file(args.old_map)
+    new_objects = parse_map_file(args.new_map)
 
-if __name__ == "__main__":
+    # Filter sections if mode specified
+    if args.mode:
+        old_objects = filter_sections_by_mode(old_objects, args.mode)
+        new_objects = filter_sections_by_mode(new_objects, args.mode)
+
+    # Group by directory
+    old_by_dir = group_by_directory(old_objects)
+    new_by_dir = group_by_directory(new_objects)
+
+    # Calculate differences
+    differences = {}
+    section_totals = {}
+
+    # Process all directories
+    all_dirs = set(old_by_dir.keys()) | set(new_by_dir.keys())
+    for dirname in sorted(all_dirs):
+        old_dir = old_by_dir.get(dirname, {})
+        new_dir = new_by_dir.get(dirname, {})
+        
+        # Process all objects in this directory
+        all_objects = set(old_dir.keys()) | set(new_dir.keys())
+        for obj_path in sorted(all_objects):
+            old_obj = old_dir.get(obj_path, {})
+            new_obj = new_dir.get(obj_path, {})
+            
+            # Process all sections in this object
+            all_sections = set(old_obj.keys()) | set(new_obj.keys())
+            for section in sorted(all_sections):
+                old_section = old_obj.get(section, {})
+                new_section = new_dir.get(obj_path, {}).get(section, {})
+                
+                # Process all symbols in this section
+                all_symbols = set(old_section.keys()) | set(new_section.keys())
+                for symbol in sorted(all_symbols):
+                    old_size = old_section.get(symbol, 0)
+                    new_size = new_section.get(symbol, 0)
+                    diff = new_size - old_size
+                    
+                    # Skip if unchanged and not showing unchanged
+                    if not args.show_unchanged and diff == 0:
+                        continue
+                    
+                    # Initialize data structures if needed
+                    if dirname not in differences:
+                        differences[dirname] = {}
+                    if obj_path not in differences[dirname]:
+                        differences[dirname][obj_path] = {}
+                    if section not in differences[dirname][obj_path]:
+                        differences[dirname][obj_path][section] = {}
+                    
+                    # Store symbol info
+                    differences[dirname][obj_path][section][symbol] = {
+                        'old_size': old_size,
+                        'new_size': new_size,
+                        'diff': diff
+                    }
+                    
+                    # Update section totals
+                    if section not in section_totals:
+                        section_totals[section] = 0
+                    section_totals[section] += diff
+
+    if args.html:
+        generate_html_report(differences, section_totals, args.mode, args.html)
+    else:
+        # Print text report
+        print("Section Totals:")
+        print("-" * 80)
+        total_diff = 0
+        for section, diff in sorted(section_totals.items()):
+            if diff != 0:
+                print(f".{section:<20} {diff:+,d} bytes")
+                total_diff += diff
+        print("-" * 80)
+        print(f"Total size difference: {total_diff:+,d} bytes")
+        print()
+
+        if args.mode:
+            print(f"Showing only {args.mode.upper()} sections. ", end="")
+        print("Sorted by impact (largest changes first).")
+        print()
+
+        # Print detailed changes
+        for dirname, dir_objects in sorted(differences.items(), key=lambda x: sum(abs(info['diff']) for obj in x[1].values() for section in obj.values() for info in section.values()), reverse=True):
+            dir_total = sum(info['diff'] for obj in dir_objects.values() for section in obj.values() for info in section.values())
+            if dir_total == 0 and not args.show_unchanged:
+                continue
+            
+            print(f"├── {dirname}/ ({dir_total:+,d} bytes)")
+            
+            for obj_path, sections in sorted(dir_objects.items(), key=lambda x: sum(abs(info['diff']) for section in x[1].values() for info in section.values()), reverse=True):
+                obj_total = sum(info['diff'] for section in sections.values() for info in section.values())
+                if obj_total == 0 and not args.show_unchanged:
+                    continue
+                
+                obj_name = os.path.basename(obj_path)
+                print(f"│   └── {obj_name} ({obj_total:+,d} bytes)")
+                
+                for section, symbols in sorted(sections.items(), key=lambda x: sum(abs(info['diff']) for info in x[1].values()), reverse=True):
+                    section_total = sum(info['diff'] for info in symbols.values())
+                    if section_total == 0 and not args.show_unchanged:
+                        continue
+                    
+                    print(f"│       └── .{section} ({section_total:+,d} bytes)")
+                    
+                    for symbol, info in sorted(symbols.items(), key=lambda x: abs(x[1]['diff']), reverse=True):
+                        if info['diff'] == 0 and not args.show_unchanged:
+                            continue
+                        
+                        if info['old_size'] == 0:
+                            status = "[ADDED]"
+                            size_str = f"New: {info['new_size']:6,d}"
+                        elif info['new_size'] == 0:
+                            status = "[REMOVED]"
+                            size_str = f"Old: {info['old_size']:6,d}"
+                        else:
+                            status = "[CHANGED]"
+                            size_str = f"Old: {info['old_size']:6,d} New: {info['new_size']:6,d}"
+                        
+                        print(f"│           └── {symbol:40} {status:10} {size_str:25} Diff: {info['diff']:+,d}")
+
+if __name__ == '__main__':
     main() 
