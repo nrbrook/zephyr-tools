@@ -19,19 +19,125 @@ Under the following conditions:
 
 1. Use `compare_size_trees.py` for a high-level view of memory usage by component/directory
 2. Use `compare_map_files.py` for detailed symbol-level analysis, or if the link step fails due to overflow (so Zephyr's ROM_MAP or RAM_MAP tools don't work)
+3. Use `analyse_map_file.py` to find memory usage hotspots in a single build:
    - Use `--mode rom` to focus on flash usage
    - Use `--mode ram` to focus on RAM usage
-3. Look for:
+   - Use `--min-size` to filter out small symbols
+   - Use `--by-symbol` to find duplicated symbols across objects
+4. Look for:
    - Large individual symbols (functions or data)
    - Patterns of growth in specific directories
    - Unexpected additions or changes
-4. Common optimization targets:
+   - Duplicated symbols across multiple objects
+5. Common optimization targets:
    - Large string constants in .rodata
    - Debug/logging code in .text
    - Uninitialized arrays in .bss
-   - Initialized global variables in .data 
+   - Initialized global variables in .data
+   - Duplicated functions (consider moving to shared libraries)
 
 ## Tools
+
+### analyse_map_file.py
+
+A tool for analyzing memory usage in a single map file, helping identify memory usage hotspots and optimization opportunities.
+
+### Purpose
+- Analyzes memory usage from a map file
+- Shows section totals with percentages
+- Can focus on either ROM or RAM sections
+- Groups symbols by object and section
+- Can group identical symbols across all objects
+- Sorts by size to identify "worst offenders"
+- Can generate interactive HTML reports with visualizations
+
+### Usage
+```bash
+python3 analyse_map_file.py zephyr.map [--mode rom|ram] [--min-size BYTES] [--by-symbol] [--html FILE]
+```
+
+### Options
+- `--mode rom|ram`: Show only ROM (.text, .rodata) or RAM (.data, .bss, .noinit) sections
+- `--min-size BYTES`: Only show symbols larger than this size
+- `--by-symbol`: Group identical symbols across all objects (helps find duplication)
+- `--html FILE`: Generate an interactive HTML report with visualizations
+
+### HTML Report Features
+The HTML report (`--html` option) provides an interactive visualization of memory usage:
+
+![Memory Analysis HTML Report Example](docs/images/memory_analysis_example.png)
+
+1. **Section Totals**
+   - Table view of all sections with sizes and percentages
+   - Total memory usage summary
+
+2. **Interactive Treemap**
+   - Hierarchical visualization of memory usage
+   - Click to zoom into specific parts
+   - Hover for detailed information
+   - Shows:
+     - Directory structure
+     - Object files
+     - Sections within objects
+     - Individual symbols
+
+3. **Detailed Tree View**
+   - Expandable/collapsible tree structure
+   - Shows full hierarchy:
+     - Directories
+     - Object files
+     - Sections
+     - Symbols with sizes
+   - Easy to navigate large codebases
+
+### Requirements for HTML Reports
+To use the HTML report feature, install the required packages:
+```bash
+pip install -r requirements.txt
+```
+
+### Example HTML Report Usage
+```bash
+# Basic HTML report
+python3 analyse_map_file.py zephyr.map --html report.html
+
+# ROM-only HTML report
+python3 analyse_map_file.py zephyr.map --mode rom --html rom_report.html
+
+# RAM analysis with symbol grouping
+python3 analyse_map_file.py zephyr.map --mode ram --by-symbol --html ram_report.html
+```
+
+### Output Example
+```
+Section Totals:
+--------------------------------------------------------------------------------
+.text                     524288 bytes  (65.5%)
+.rodata                   180224 bytes  (22.5%)
+.data                      32768 bytes   (4.1%)
+.bss                       63488 bytes   (7.9%)
+--------------------------------------------------------------------------------
+Total ROM size: 800,768 bytes
+
+Largest Symbols by Object and Section:
+--------------------------------------------------------------------------------
+app/
+  main.c (65,536 bytes)
+    .text (45,056 bytes)
+      main                                  8192 bytes  (18.2%)
+      process_data                         4096 bytes   (9.1%)
+    .rodata (20,480 bytes)
+      string_table                        16384 bytes  (80.0%)
+```
+
+Or with `--by-symbol`:
+```
+Largest Symbols (across all objects):
+--------------------------------------------------------------------------------
+string_table                                        16384 bytes  (20.0%)
+main                                                8192 bytes  (10.0%)
+process_data                                        4096 bytes   (5.0%)
+```
 
 ### compare_size_trees.py
 

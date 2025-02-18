@@ -1,0 +1,2 @@
+# Optional dependencies for HTML output
+jinja2>=3.1.0 
