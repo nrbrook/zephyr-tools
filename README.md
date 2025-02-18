@@ -18,7 +18,7 @@ Under the following conditions:
 ## Tips for Memory Analysis
 
 1. Use `compare_size_trees.py` for a high-level view of memory usage by component/directory
-2. Use `compare_map_files.py` for detailed symbol-level analysis, or if the link step fails due to overflow (so Zephyr's ROM_MAP or RAM_MAP tools don't work):
+2. Use `compare_map_files.py` for detailed symbol-level analysis, or if the link step fails due to overflow (so Zephyr's ROM_MAP or RAM_MAP tools don't work)
    - Use `--mode rom` to focus on flash usage
    - Use `--mode ram` to focus on RAM usage
 3. Look for:
@@ -74,7 +74,7 @@ app/                                    (changed: Old: 1024, New: 1124, Diff: +1
       └── feature.c                    (changed: Old: 512, New: 572, Diff: +60)
 ```
 
-## compare_map_files.py
+### compare_map_files.py
 
 A tool for analyzing memory usage differences between two builds by comparing their map files. Provides detailed analysis of both ROM (flash) and RAM usage at the symbol level.
 
@@ -121,7 +121,7 @@ Showing only ROM sections. Sorted by impact (largest changes first).
   - `.bss`: Uninitialized data
   - `.noinit`: Non-initialized data
 
-## bus_fault_debug.sh
+### bus_fault_debug.sh
 
 A utility script for debugging bus faults in embedded systems by converting fault addresses to source code locations.
 
@@ -198,3 +198,42 @@ If `arm-none-eabi-addr2line` is not found, you can:
    - The address is invalid
    - The ELF file doesn't match the running firmware
    - The build doesn't include debug symbols
+
+## Shared Modules
+
+### map_file_utils.py
+
+A shared module containing utilities for parsing and analyzing map files.
+
+### Features
+- Map file parsing with support for:
+  - Multi-line symbol entries
+  - Section and symbol names
+  - Object paths
+  - Size information
+- Section filtering for ROM/RAM analysis
+- Directory-based grouping
+- Size calculation utilities
+
+### Usage
+```python
+from map_file_utils import parse_map_file, filter_sections, group_by_directory
+
+# Parse a map file
+objects = parse_map_file("zephyr.map")
+
+# Filter for ROM sections only
+rom_objects = filter_sections(objects, mode="rom")
+
+# Group by directory
+grouped = group_by_directory(rom_objects)
+```
+
+### Section Types
+- ROM sections:
+  - `.text`: Code/instructions
+  - `.rodata`: Read-only data (constants)
+- RAM sections:
+  - `.data`: Initialized data
+  - `.bss`: Uninitialized data
+  - `.noinit`: Non-initialized data

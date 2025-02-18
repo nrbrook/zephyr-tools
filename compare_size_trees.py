@@ -188,8 +188,6 @@ def main():
     parser.add_argument('old_tree', help='Path to the old tree file')
     parser.add_argument('new_tree', help='Path to the new tree file')
     parser.add_argument('--show-unchanged', action='store_true', help='Show unchanged nodes in the output')
-    parser.add_argument('--type', choices=['rom', 'ram'], default='rom',
-                      help='Type of memory being analyzed (affects output labels only)')
     args = parser.parse_args()
 
     old_root = parse_tree_file(args.old_tree)
@@ -199,11 +197,10 @@ def main():
     if not merged["has_changes"]:
         print("No differences found.")
     else:
-        memory_type = args.type.upper()
         if old_root["size"] != 0 and new_root["size"] != 0:
             diff = new_root["size"] - old_root["size"]
             diff_percent = (diff / old_root["size"]) * 100
-            print(f"Total {memory_type} usage change: {diff:+d} bytes ({diff_percent:+.1f}%)")
+            print(f"Total usage change: {diff:+d} bytes ({diff_percent:+.1f}%)")
             print(f"Old total: {old_root['size']} bytes")
             print(f"New total: {new_root['size']} bytes")
         print("\nDetailed changes:")
