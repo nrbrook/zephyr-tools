@@ -1,0 +1,14 @@
+[flake8]
+# Check that this is aligned with your other tools like Black
+max-line-length = 120
+exclude =
+    .git,
+    __pycache__,
+    update_packaging,
+    build*/,
+    src/proto/generated_python,
+    tools
+# Use extend-ignore to add to already ignored checks which are anti-patterns like W503.
+extend-ignore =
+    E203,
+    D202
