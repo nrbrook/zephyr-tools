@@ -99,20 +99,33 @@ def parse_map_file(filename):
     return objects
 
 
-def filter_sections(objects, mode=None):
+def filter_sections(objects, mode=None, section_filter=None):
     """
-    Filter objects to only include relevant sections for ROM or RAM analysis.
+    Filter objects to only include relevant sections for ROM or RAM analysis or by custom filter.
 
     Args:
         objects: A dictionary of objects and their sections.
-        mode: The mode to filter the sections by.
+        mode: The mode to filter the sections by ('rom' or 'ram').
+        section_filter: Optional function that takes a section name and returns True if it should be included.
 
     Returns:
         A dictionary of objects and their filtered sections.
     """
-    if mode is None:
+    if mode is None and section_filter is None:
         return objects
 
+    if section_filter:
+        # Use custom section filter
+        filtered_objects = {}
+        for obj_path, sections in objects.items():
+            filtered_sections = {
+                section: symbols for section, symbols in sections.items() if section_filter(section)
+            }
+            if filtered_sections:
+                filtered_objects[obj_path] = filtered_sections
+        return filtered_objects
+
+    # Use mode-based filtering
     relevant_sections = ROM_SECTIONS if mode == "rom" else RAM_SECTIONS
 
     filtered_objects = {}

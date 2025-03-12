@@ -96,6 +96,24 @@
             content: "\2022";  /* Unicode BULLET */
             margin-right: 4px;
         }
+        pre {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+        code {
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+            font-size: 0.9em;
+            background-color: #f5f5f5;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+        pre code {
+            padding: 0;
+            background-color: transparent;
+        }
     </style>
     <script>
         function toggleSection(element) {
@@ -117,6 +135,21 @@
     <p>Analysis mode: {{ mode.upper() }}</p>
     {% endif %}
     
+    <!-- Tips -->
+    <div class="section">
+        <div class="section-header" onclick="toggleSection(this)">
+            <h2>Tips</h2>
+        </div>
+        <div class="section-content">
+            <h3>Examining strings in object files</h3>
+            <p>To look for strings in an object section, for example if the section in the report is displayed as "<code>&lt;obj file&gt;.c.obj: .rodata: str1.1</code>", you can run the command:</p>
+            <pre><code>arm-none-eabi-objdump -sj.rodata.str1.1 &lt;obj file&gt;.c.obj</code></pre>
+
+            <p>To search for strings in the final binary or ELF file:</p>
+            <pre><code>arm-none-eabi-strings &lt;binary/elf file&gt;</code></pre>
+        </div>
+    </div>
+
     <!-- Section Totals -->
     <div class="section">
         <div class="section-header" onclick="toggleSection(this)">
@@ -128,18 +161,21 @@
                     <th>Section</th>
                     <th>Size</th>
                     <th>Percentage</th>
+                    <th>Description</th>
                 </tr>
                 {% for section, info in section_totals.items() %}
                 <tr>
                     <td>.{{ section }}</td>
                     <td>{{ "{:,d}".format(info.size) }} bytes</td>
                     <td>{{ "%.1f"|format(info.percentage) }}%</td>
+                    <td>{{ section_explanations[section] }}</td>
                 </tr>
                 {% endfor %}
                 <tr>
                     <td><strong>Total</strong></td>
                     <td><strong>{{ "{:,d}".format(total_size) }} bytes</strong></td>
                     <td>100%</td>
+                    <td></td>
                 </tr>
             </table>
         </div>

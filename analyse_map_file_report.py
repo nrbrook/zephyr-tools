@@ -133,7 +133,31 @@ def generate_html_report(
         output_file: The file to write the report to.
         get_section_total: A function to get the total size of a section.
         get_object_total: A function to get the total size of an object.
+        group_by_directory: A function to group objects by directory.
     """
+    # Define section explanations
+    section_explanations = {
+        "text": "Executable code.",
+        "rodata": "Read-only data (constants, string literals).",
+        "data": "Initialized global and static variables.",
+        "bss": "Uninitialized global and static variables (zero-initialized at runtime).",
+        "noinit": "Uninitialized data that is not zero-initialized at runtime.",
+        "datas": "Initialized data in RAM.",
+        "initlevel": "Initialization functions sorted by priority level.",
+        "sw_isr_table": "Software interrupt service routine table.",
+        "device_handles": "Device driver instance handles.",
+        "k_timer_area": "Kernel timer data.",
+        "k_mem_slab_area": "Kernel memory slab allocator data.",
+        "k_heap_area": "Kernel heap allocator data.",
+        "k_mutex_area": "Kernel mutex data.",
+        "k_msgq_area": "Kernel message queue data.",
+        "k_sem_area": "Kernel semaphore data.",
+        "k_queue_area": "Kernel queue data.",
+        "app_shmem_regions": "Application shared memory regions.",
+        "priv_stacks": "Private thread stacks.",
+        "stacks": "Thread stacks.",
+    }
+
     # Calculate section totals
     section_totals = defaultdict(lambda: {"size": 0, "percentage": 0})
     total_size = 0
@@ -151,12 +175,19 @@ def generate_html_report(
     # Sort section totals by size
     section_totals = dict(sorted(section_totals.items(), key=lambda x: x[1]["size"], reverse=True))
 
+    # Filter section explanations to only include sections present in the analysis
+    filtered_explanations = {
+        section: section_explanations.get(section, "No description available.")
+        for section in section_totals.keys()
+    }
+
     # Prepare data for the template
     template_data = {
         "mode": mode,
         "by_symbol": by_symbol,
         "section_totals": section_totals,
         "total_size": total_size,
+        "section_explanations": filtered_explanations,
         "treemap_data": json.dumps(
             prepare_treemap_data(
                 objects,

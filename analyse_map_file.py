@@ -128,20 +128,27 @@ def main():
         epilog="""
 Examples:
   Show all symbols:
-    %(prog)s zephyr.map
+    %(prog)s zephyr.map --mode all
   Show ROM symbols over 1KB:
     %(prog)s zephyr.map --mode rom --min-size 1024
   Show largest RAM symbols grouped by name:
     %(prog)s zephyr.map --mode ram --by-symbol
+  Show only .rodata section:
+    %(prog)s zephyr.map --section rodata
   Generate HTML report:
-    %(prog)s zephyr.map --html report.html
+    %(prog)s zephyr.map --html report.html --mode rom
         """,
     )
     parser.add_argument("map_file", help="Path to the map file to analyze")
-    parser.add_argument(
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument(
         "--mode",
-        choices=["rom", "ram"],
+        choices=["rom", "ram", "all"],
         help="Analysis mode: rom shows flash usage (.text, .rodata), " "ram shows RAM usage (.data, .bss, .noinit)",
+    )
+    group.add_argument(
+        "--section",
+        help="Filter by specific section name (without the leading dot, e.g. 'rodata')"
     )
     parser.add_argument("--min-size", type=int, default=0, help="Only show symbols larger than this size in bytes")
     parser.add_argument("--by-symbol", action="store_true", help="Group identical symbols across all objects")
@@ -151,7 +158,13 @@ Examples:
     try:
         # Parse and filter the map file
         objects = parse_map_file(args.map_file)
-        if args.mode:
+        
+        if args.section:
+            # Create a custom filter function for the specific section
+            def section_filter(section_name):
+                return section_name == args.section
+            objects = filter_sections(objects, None, section_filter)
+        elif args.mode and args.mode != "all":
             objects = filter_sections(objects, args.mode)
 
         if not objects:
@@ -169,16 +182,23 @@ Examples:
 
             generate_html_report(
                 objects,
-                mode=args.mode,
+                mode=args.mode if not args.section else f"section .{args.section}",
                 by_symbol=args.by_symbol,
                 output_file=args.html,
                 get_section_total=get_section_total,
                 get_object_total=get_object_total,
                 group_by_directory=group_by_directory,
             )
+
+            import webbrowser
+            import os
+            from urllib.request import pathname2url
+            html_path = os.path.abspath(args.html)
+            print(f"Opening HTML report in browser: {html_path}")
+            webbrowser.open("file://" + pathname2url(html_path))
         else:
             # Print text analysis
-            print_section_totals(objects, args.mode)
+            print_section_totals(objects, args.mode if not args.section else f"section .{args.section}")
             print_symbol_analysis(objects, args.min_size, args.by_symbol)
 
     except FileNotFoundError:
