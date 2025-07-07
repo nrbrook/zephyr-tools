@@ -22,19 +22,26 @@ ROM_SECTIONS = {"text", "rodata"}
 RAM_SECTIONS = {"data", "bss", "noinit"}
 
 
-def filter_sections_by_mode(objects, mode):
+def filter_sections_by_mode(objects, mode=None, custom_sections=None):
     """
-    Filter objects to only include relevant sections for ROM or RAM analysis.
+    Filter objects to only include relevant sections for ROM or RAM analysis, or custom sections.
 
     Args:
         objects: A dictionary of objects and their sections.
-        mode: The mode to filter the sections by.
+        mode: The mode to filter the sections by ('rom' or 'ram').
+        custom_sections: A set of custom section names to filter by.
 
     Returns:
         A dictionary of objects and their filtered sections.
     """
-
-    relevant_sections = ROM_SECTIONS if mode == "rom" else RAM_SECTIONS
+    if custom_sections:
+        relevant_sections = custom_sections
+    elif mode == "rom":
+        relevant_sections = ROM_SECTIONS
+    elif mode == "ram":
+        relevant_sections = RAM_SECTIONS
+    else:
+        return objects
 
     filtered_objects = {}
     for obj_path, sections in objects.items():
@@ -47,22 +54,27 @@ def filter_sections_by_mode(objects, mode):
     return filtered_objects
 
 
-def filter_differences(differences, section_totals, mode):
+def filter_differences(differences, section_totals, mode=None, custom_sections=None):
     """
-    Filter differences and totals to only include relevant sections for ROM or RAM analysis.
+    Filter differences and totals to only include relevant sections for ROM or RAM analysis, or custom sections.
 
     Args:
         differences: A dictionary of objects and their differences.
         section_totals: A dictionary of section totals.
-        mode: The mode to filter the sections by.
+        mode: The mode to filter the sections by ('rom' or 'ram').
+        custom_sections: A set of custom section names to filter by.
 
     Returns:
         A tuple of the filtered differences and totals.
     """
-    if mode is None:
+    if custom_sections:
+        relevant_sections = custom_sections
+    elif mode == "rom":
+        relevant_sections = ROM_SECTIONS
+    elif mode == "ram":
+        relevant_sections = RAM_SECTIONS
+    else:
         return differences, section_totals
-
-    relevant_sections = ROM_SECTIONS if mode == "rom" else RAM_SECTIONS
 
     # Filter section totals
     filtered_totals = {
@@ -107,7 +119,7 @@ def get_section_total_diff(symbols):
     return sum(info["diff"] for info in symbols.values())
 
 
-def print_tree(differences, section_totals, show_unchanged=False, mode=None):
+def print_tree(differences, section_totals, show_unchanged=False, mode=None, custom_sections=None):
     """
     Print the differences in a tree structure, similar to the ROM tree output.
 
@@ -115,10 +127,11 @@ def print_tree(differences, section_totals, show_unchanged=False, mode=None):
         differences: A dictionary of objects and their differences.
         section_totals: A dictionary of section totals.
         show_unchanged: Whether to show unchanged symbols.
-        mode: The mode to filter the sections by.
+        mode: The mode to filter the sections by ('rom' or 'ram').
+        custom_sections: A set of custom section names to filter by.
     """
-    # Filter sections based on mode
-    differences, section_totals = filter_differences(differences, section_totals, mode)
+    # Filter sections based on mode or custom sections
+    differences, section_totals = filter_differences(differences, section_totals, mode, custom_sections)
 
     # First print section totals
     print("\nSection Totals:")
@@ -134,11 +147,21 @@ def print_tree(differences, section_totals, show_unchanged=False, mode=None):
         print(f".{section:20} {color}{diff:+d}{RESET} bytes")
     print("-" * 80)
 
-    memory_type = "ROM" if mode == "rom" else "RAM" if mode == "ram" else "total"
-    print(f"Total {memory_type} size difference: {total_diff:+d} bytes\n")
+    if custom_sections:
+        filter_desc = f"custom sections ({', '.join(sorted(custom_sections))})"
+    elif mode:
+        filter_desc = f"{mode.upper()} sections"
+    else:
+        filter_desc = "total"
+    
+    print(f"Total {filter_desc} size difference: {total_diff:+d} bytes\n")
 
-    if mode:
-        print(f"Showing only {mode.upper()} sections. Sorted by impact (largest changes first).\n")
+    if mode or custom_sections:
+        if custom_sections:
+            sections_list = ', '.join(sorted(custom_sections))
+            print(f"Showing only custom sections: {sections_list}. Sorted by impact (largest changes first).\n")
+        else:
+            print(f"Showing only {mode.upper()} sections. Sorted by impact (largest changes first).\n")
 
     # Group differences by directory
     grouped_differences = group_by_directory(differences)
@@ -267,18 +290,26 @@ def main():
     parser.add_argument("old_map", help="Path to the old map file")
     parser.add_argument("new_map", help="Path to the new map file")
     parser.add_argument("--mode", choices=["rom", "ram"], help="Show only ROM or RAM sections")
+    parser.add_argument("--sections", nargs="+", help="Show only specified sections (e.g., --sections text rodata)")
     parser.add_argument("--show-unchanged", action="store_true", help="Show symbols that have not changed")
     parser.add_argument("--html", metavar="FILE", help="Generate HTML report")
     args = parser.parse_args()
+
+    # Validate arguments
+    if args.mode and args.sections:
+        parser.error("Cannot specify both --mode and --sections options")
 
     # Parse map files
     old_objects = parse_map_file(args.old_map)
     new_objects = parse_map_file(args.new_map)
 
-    # Filter sections if mode specified
-    if args.mode:
-        old_objects = filter_sections_by_mode(old_objects, args.mode)
-        new_objects = filter_sections_by_mode(new_objects, args.mode)
+    # Convert sections list to set for filtering
+    custom_sections = set(args.sections) if args.sections else None
+
+    # Filter sections if mode or custom sections specified
+    if args.mode or custom_sections:
+        old_objects = filter_sections_by_mode(old_objects, args.mode, custom_sections)
+        new_objects = filter_sections_by_mode(new_objects, args.mode, custom_sections)
 
     # Group by directory
     old_by_dir = group_by_directory(old_objects)
@@ -338,7 +369,7 @@ def main():
                     section_totals[section] += diff
 
     if args.html:
-        generate_html_report(differences, section_totals, args.mode, args.html)
+        generate_html_report(differences, section_totals, args.mode, args.html, custom_sections)
     else:
         # Print text report
         print("Section Totals:")
@@ -352,7 +383,9 @@ def main():
         print(f"Total size difference: {total_diff:+,d} bytes")
         print()
 
-        if args.mode:
+        if custom_sections:
+            print(f"Showing only custom sections: {', '.join(sorted(custom_sections))}. ", end="")
+        elif args.mode:
             print(f"Showing only {args.mode.upper()} sections. ", end="")
         print("Sorted by impact (largest changes first).")
         print()

@@ -11,7 +11,7 @@ import os
 from jinja2 import Template
 
 
-def generate_html_report(differences, section_totals, mode=None, output_file=None):
+def generate_html_report(differences, section_totals, mode=None, output_file=None, custom_sections=None):
     """
     Generate an HTML report for the map file comparison.
 
@@ -20,6 +20,7 @@ def generate_html_report(differences, section_totals, mode=None, output_file=Non
         section_totals: A dictionary of section totals.
         mode: The mode to filter the sections by.
         output_file: The file to write the report to.
+        custom_sections: A set of custom section names to filter by.
     """
     # Calculate old and new totals
     old_total = 0
@@ -99,6 +100,7 @@ def generate_html_report(differences, section_totals, mode=None, output_file=Non
     # Prepare template data
     template_data = {
         "mode": mode,
+        "custom_sections": custom_sections,
         "old_total": old_total,
         "new_total": new_total,
         "section_totals": section_totals_data,
